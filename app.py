@@ -417,11 +417,11 @@ def assign_multiple_diagnoses(df, mask_missing):
     m3 = mask_spadek & (df['Clicks_Prev'] > 0) & (df['Clicks_Curr'] == 0)
     diagnoses.loc[m3] = diagnoses.loc[m3].apply(lambda x: x + ["Utrata Widoczności (GSC)"])
     
-    m4 = mask_spadek & (df['Diff_Pos'] > 1.0)
+    m4 = mask_spadek & (df['Diff_Pos'] > 1.0) & (df['Pos_Prev'] > 0)
     diagnoses.loc[m4] = diagnoses.loc[m4].apply(lambda x: x + ["Spadek Pozycji (GSC)"])
     
     if 'Ah_Diff_Pos' in df.columns:
-        m4_ah = mask_spadek & (df['Ah_Diff_Pos'] >= 1.0)
+        m4_ah = mask_spadek & (df['Ah_Diff_Pos'] >= 1.0) & (df['Ah_Pos_Prev'] > 0)
         diagnoses.loc[m4_ah] = diagnoses.loc[m4_ah].apply(lambda x: x + ["Spadek Pozycji (Ahrefs)"])
 
     if 'Status_Code' in df.columns:
