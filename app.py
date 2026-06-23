@@ -165,7 +165,7 @@ def generate_ui_dataframe(df_orig, type_name="Query", sort_asc=True):
         
     return df_out
     
-def generate_html_report(df, df_pages, df_loss, df_growth, fig1, fig2, fig_brand, fig_ah, fig3, ui_gkp, fig_ctr, ui_df_queries, ui_df_pages):
+def generate_html_report(df, df_pages, df_loss, df_growth, fig1, fig2, fig_brand, fig_ah, fig3, ui_gkp, fig_ctr, ui_df_queries, ui_df_pages, **kwargs):
     total_diff = df_pages['Diff_Clicks'].sum() if df_pages is not None else df['Diff_Clicks'].sum()
     loss_sum = df_pages[(df_pages['Diff_Clicks'] < 0)]['Diff_Clicks'].sum() if df_pages is not None else df_loss['Diff_Clicks'].sum()
     
@@ -346,6 +346,20 @@ def generate_html_report(df, df_pages, df_loss, df_growth, fig1, fig2, fig_brand
         html += "<h2>5. Krzywa CTR (GSC)</h2>"
         html += f"<div>{fig_ctr.to_html(full_html=False, include_plotlyjs='cdn')}</div>"
 
+    fig4 = kwargs.get('fig4')
+    fig_wc_clicks = kwargs.get('fig_wc_clicks')
+    fig_wc_curr = kwargs.get('fig_wc_curr')
+    
+    if fig4:
+        html += "<h2>Brak Zmiany Pozycji (Wzrosty i Spadki)</h2>"
+        html += f"<div>{fig4.to_html(full_html=False, include_plotlyjs='cdn')}</div>"
+
+    if fig_wc_clicks or fig_wc_curr:
+        html += "<h2>Analiza Długiego Ogona (Word Count)</h2>"
+        if fig_wc_clicks: html += f"<div>{fig_wc_clicks.to_html(full_html=False, include_plotlyjs='cdn')}</div>"
+        if fig_wc_curr: html += f"<div>{fig_wc_curr.to_html(full_html=False, include_plotlyjs='cdn')}</div>"
+
+
     html += """<h2>6. Szczegółowa Analiza Top 100 Spadków (GSC)</h2>
     <table id="tbl_main"><thead><tr>
         <th onclick="sortTable(0, 'tbl_main')">Fraza</th>
@@ -459,7 +473,7 @@ with st.expander("🛠️ Instrukcja pobierania danych i Słownik Pojęć", expa
     ### 🛠️ Instrukcja pobierania danych
     1. **Google Search Console (GSC)**: Pobierz dane w języku PL z Google Search Console (porównaj np. podstrony zawierające `/category` - porównanie styczeń 2026 -> styczeń 2025).
     2. **Google Keyword Planner (GKP)**: Skopiuj wszystkie frazy z punktu 1 i wklej je w [https://data-center.space/app/keywordplanner](https://data-center.space/app/keywordplanner). Następnie pobierz wszystkie dane w okresie podanym w punkcie 1 (np. od stycznia 2024 do stycznia 2026).
-    3. **Ahrefs**: Pobierz plik z Ahrefs stąd: [Link do Ahrefs dla mediamarkt.pl](https://app.ahrefs.com/v2-site-explorer/organic-keywords?brandedMode=all&chartGranularity=weekly&chartInterval=all&chartMetric=Keywords&compareDate=prevYear&country=pl&currentDate=2026-02-28&hiddenColumns=AllIntents%7C%7CCPC%7C%7CEntities%7C%7CKD%7C%7COtherIntents%7C%7CPaidTraffic%7C%7CPositionHistory%7C%7CSF%7C%7CUserIntents&intentsAttrs=&keywordRules=&languages=languageMatch%3A%5Ball%5D~~languageRules%3A%5BlangMatchType%3Ais%2Clangs%3Apl%2CmatchMode%3Aany%5D&limit=100&localMode=all&mainOnly=0&mode=subdomains&multipleUrlsOnly=0&offset=0&performanceChartTopPosition=top11_20%7C%7Ctop21_50%7C%7Ctop3%7C%7Ctop4_10%7C%7Ctop51&positionChanges=&positions=-20&sort=OrganicTrafficInitial&sortDirection=desc&target=mediamarkt.pl%2F&urlRules=&volume=10-&volume_type=average)
+    3. **Ahrefs**: Pobierz plik z Ahrefs stąd: [Link do Ahrefs dla mediamarkt.pl](https://app.ahrefs.com/v2-site-explorer/organic-keywords?brandedMode=all&chartGranularity=weekly&chartInterval=all&chartMetric=Keywords&compareDate=prevYear&country=pl&currentDate=2026-02-28&hiddenColumns=AllIntents%7C%7CCPC%7C%7CEntities%7C%7CKD%7C%7COtherIntents%7C%7CPaidTraffic%7C%7CPositionHistory%7C%7CSF%7C%7CUserIntents&intentsAttrs=&keywordRules=&languages=languageMatch%3A%5Ball%5D~~languageRules%3A%5BlangMatchType%3Ais%2Clangs%3Apl%2CmatchMode%3Aany%5D&limit=100&localMode=all&mainOnly=0&mode=subdomains&multipleUrlsOnly=0&offset=0&performanceChartTopPosition=top11_20%7C%7Ctop21_50%7C%7Ctop3%7C%7Ctop4_10%7C%7Ctop51&positionChanges=&positions=-20&sort=OrganicTrafficInitial&sortDirection=desc&target=mediamarkt.pl%2F&urlRules=&volume=10-&volume_type=average). **Pamiętaj o oznaczeniu prawidłowych dat w porównaniu, np. 28 Feb 2026 vs. 28 Feb 2025.**
     
     ### 📚 Słownik Pojęć i Diagnoz
     - **Spadek Pozycji (GSC)**: Strona spadła w wynikach Google (np. z poz. 1 na 5). Wymaga audytu treści i linków.
@@ -1262,7 +1276,7 @@ if st.session_state.get('run_analysis', False):
                         st.download_button("💾 Pobierz Raport .xlsx", data=output.getvalue(), file_name="Raport_SEO_Full.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", use_container_width=True)
 
                     with col2:
-                        html_report = generate_html_report(df, df_pages, df_loss, df_growth, fig1, fig2, fig_brand, fig_ah, fig3, ui_gkp, fig_ctr, ui_df_queries, ui_df_pages)
+                        html_report = generate_html_report(df, df_pages, df_loss, df_growth, fig1, fig2, fig_brand, fig_ah, fig3, ui_gkp, fig_ctr, ui_df_queries, ui_df_pages, fig4=fig4, fig_wc_clicks=fig_wc_clicks, fig_wc_curr=fig_wc_curr)
                         st.download_button("📄 Pobierz Pełen Raport Wizualny (HTML / PDF)", data=html_report, file_name="Raport_SEO_Wizualny.html", mime="text/html", type="primary", use_container_width=True)
 
         except Exception as e:
