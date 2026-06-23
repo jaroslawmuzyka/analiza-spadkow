@@ -117,8 +117,8 @@ def process_gsc_sheet(df, type_col_name='Query'):
     
     return df
 
-def generate_ui_dataframe(df_orig, type_name="Query"):
-    df = df_orig.sort_values(by="Diff_Clicks", ascending=True).copy()
+def generate_ui_dataframe(df_orig, type_name="Query", sort_asc=True):
+    df = df_orig.sort_values(by="Diff_Clicks", ascending=sort_asc).copy()
     mask = detect_missing_data(df)
 
     col_map = {
@@ -901,13 +901,13 @@ if st.session_state.get('run_analysis', False):
                                     with c_t3:
                                         st.markdown(f"**🟢 Wzrosty Brand (Top {len(growth_pos_b)})**")
                                         if not growth_pos_b.empty:
-                                            st.dataframe(generate_ui_dataframe(growth_pos_b, "Query"), use_container_width=True)
+                                            st.dataframe(generate_ui_dataframe(growth_pos_b, "Query", sort_asc=False), use_container_width=True)
                                         else:
                                             st.info("Brak wzrostów brandowych.")
                                     with c_t4:
                                         st.markdown(f"**🟢 Wzrosty Generic (Top {len(growth_pos_g)})**")
                                         if not growth_pos_g.empty:
-                                            st.dataframe(generate_ui_dataframe(growth_pos_g, "Query"), use_container_width=True)
+                                            st.dataframe(generate_ui_dataframe(growth_pos_g, "Query", sort_asc=False), use_container_width=True)
                                         else:
                                             st.info("Brak wzrostów generycznych.")
                 with tab2:
@@ -1088,7 +1088,7 @@ if st.session_state.get('run_analysis', False):
                         })
                         
                         st.subheader(f"🟢 Wzrosty ruchu przy stabilnej pozycji (Bilans: +{int(growth_sum_no_change)} kliknięć)")
-                        st.dataframe(generate_ui_dataframe(no_change_growth, "Query"), use_container_width=True, column_config={
+                        st.dataframe(generate_ui_dataframe(no_change_growth, "Query", sort_asc=False), use_container_width=True, column_config={
                             "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
                             "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
                         })
@@ -1135,15 +1135,18 @@ if st.session_state.get('run_analysis', False):
                     
                     colA, colB = st.columns(2)
                     with colA:
-                        fig_wc_clicks = px.bar(wg_stats, x='Word_Group', y='Różnica_Kliknięć', title="GSC: Różnica Kliknięć wg Długości Frazy", color='Różnica_Kliknięć', color_continuous_scale=px.colors.diverging.RdYlGn)
-                        st.plotly_chart(fig_wc_clicks, use_container_width=True)
-                    with colB:
-                        if wg_stats['Popyt_Poprz'].sum() > 0:
-                            wg_stats['Różnica_Popytu'] = wg_stats['Popyt_Akt'] - wg_stats['Popyt_Poprz']
-                            fig_wc_gkp = px.bar(wg_stats, x='Word_Group', y='Różnica_Popytu', title="GKP: Zmiana Popytu Rynkowego wg Długości Frazy", color='Różnica_Popytu', color_continuous_scale=px.colors.diverging.RdYlGn)
-                            st.plotly_chart(fig_wc_gkp, use_container_width=True)
+                        wg_loss = wg_stats[wg_stats['Różnica_Kliknięć'] < 0].copy()
+                        if not wg_loss.empty:
+                            fig_wc_clicks = px.pie(wg_loss, names='Word_Group', values=wg_loss['Różnica_Kliknięć'].abs(), title="GSC: Skąd uciekły kliknięcia? (Udział strat)", hole=0.3, color_discrete_sequence=px.colors.sequential.Reds_r)
+                            st.plotly_chart(fig_wc_clicks, use_container_width=True)
                         else:
-                            st.info("Brak wystarczających danych GKP do wygenerowania wykresu popytu.")
+                            st.info("Brak spadków kliknięć do wykreślenia.")
+                    with colB:
+                        if wg_stats['Kliknięcia_Akt'].sum() > 0:
+                            fig_wc_curr = px.pie(wg_stats, names='Word_Group', values='Kliknięcia_Akt', title="GSC: Jak zbudowany jest aktualny ruch?", hole=0.3, color_discrete_sequence=px.colors.sequential.Teal_r)
+                            st.plotly_chart(fig_wc_curr, use_container_width=True)
+                        else:
+                            st.info("Brak aktualnych kliknięć.")
                             
                     st.divider()
                     st.subheader("📋 Szczegółowe tabele dla każdej długości frazy")
@@ -1191,7 +1194,7 @@ if st.session_state.get('run_analysis', False):
                             
                         st.subheader("🟢 Wzrosty kliknięć w zapytaniach brandowych")
                         if not df_brand_growth.empty:
-                            ui_brand_growth = generate_ui_dataframe(df_brand_growth, "Query")
+                            ui_brand_growth = generate_ui_dataframe(df_brand_growth, "Query", sort_asc=False)
                             st.dataframe(ui_brand_growth, use_container_width=True, column_config={
                                 "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
                                 "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
@@ -1219,7 +1222,7 @@ if st.session_state.get('run_analysis', False):
                             if no_change_loss is not None and not no_change_loss.empty:
                                 generate_ui_dataframe(no_change_loss, "Query").to_excel(writer, sheet_name='Brak Zmiany (Spadki)', index=False)
                             if no_change_growth is not None and not no_change_growth.empty:
-                                generate_ui_dataframe(no_change_growth, "Query").to_excel(writer, sheet_name='Brak Zmiany (Wzrosty)', index=False)
+                                generate_ui_dataframe(no_change_growth, "Query", sort_asc=False).to_excel(writer, sheet_name='Brak Zmiany (Wzrosty)', index=False)
                             if wg_stats is not None and not wg_stats.empty:
                                 wg_stats.to_excel(writer, sheet_name='Analiza Długiego Ogona', index=False)
                             if ui_brand_loss is not None and not ui_brand_loss.empty:
