@@ -523,7 +523,7 @@ if st.session_state.get('run_analysis', False):
                     else:
                         df['Type'] = 'Generic'
                     
-                    df['join_key'] = df['Query'].astype(str).str.strip().str.lower().replace(r'[^\w\s]', '', regex=True)
+                    df['join_key'] = df['Query'].astype(str).str.strip().str.lower()
 
                     # ----------------- 2. GSC PAGES -----------------
                     df_pages = None
@@ -550,7 +550,7 @@ if st.session_state.get('run_analysis', False):
                                 df_gkp[col_prev] = clean_money(df_gkp[col_prev])
                                 df_gkp[col_curr] = clean_money(df_gkp[col_curr])
                                 k_col = next((c for c in df_gkp.columns if 'Keyword' in str(c) or 'Słowo' in str(c)), df_gkp.columns[0])
-                                df_gkp['join_key'] = df_gkp[k_col].astype(str).str.strip().str.lower().replace(r'[^\w\s]', '', regex=True)
+                                df_gkp['join_key'] = df_gkp[k_col].astype(str).str.strip().str.lower()
                             
                                 df['GKP_Vol_Prev'] = df['join_key'].map(dict(zip(df_gkp['join_key'], df_gkp[col_prev]))).fillna(0)
                                 df['GKP_Vol_Curr'] = df['join_key'].map(dict(zip(df_gkp['join_key'], df_gkp[col_curr]))).fillna(0)
@@ -565,30 +565,32 @@ if st.session_state.get('run_analysis', False):
                         except: df_ah = pd.read_csv(io.BytesIO(ahrefs_bytes), encoding='utf-16', sep='\t', engine='python')
                         
                         if df_ah is not None:
-                            col_kw = next((c for c in df_ah.columns if 'Keyword' in c), None)
+                            col_kw = next((c for c in df_ah.columns if 'keyword' in str(c).lower() or 'słowo' in str(c).lower()), None)
                             if col_kw:
                                 df_ah['join_key'] = df_ah[col_kw].astype(str).str.strip().str.lower()
                             
-                                c_up = next((c for c in df_ah.columns if 'Previous URL' in c), None)
-                                c_uc = next((c for c in df_ah.columns if 'Current URL' in c), None)
+                                c_up = next((c for c in df_ah.columns if 'previous' in str(c).lower() and 'url' in str(c).lower()), None)
+                                c_uc = next((c for c in df_ah.columns if 'current' in str(c).lower() and 'url' in str(c).lower()), None)
                                 if c_up and c_uc:
                                     df['Ah_URL_Changed'] = df['join_key'].map(dict(zip(df_ah['join_key'], (df_ah[c_up] != df_ah[c_uc]) & df_ah[c_uc].notna()))).fillna(False)
                                     df['Ah_URL_Prev'] = df['join_key'].map(dict(zip(df_ah['join_key'], df_ah[c_up])))
                                     df['Ah_URL_Curr'] = df['join_key'].map(dict(zip(df_ah['join_key'], df_ah[c_uc])))
                                 
-                                c_tp = next((c for c in df_ah.columns if 'Previous organic traffic' in c), None)
-                                c_tc = next((c for c in df_ah.columns if 'Current organic traffic' in c), None)
-                                c_pp = next((c for c in df_ah.columns if 'Previous position' in c), None)
-                                c_pc = next((c for c in df_ah.columns if 'Current position' in c), None)
+                                c_tp = next((c for c in df_ah.columns if 'previous' in str(c).lower() and ('traffic' in str(c).lower() or 'ruch' in str(c).lower())), None)
+                                c_tc = next((c for c in df_ah.columns if 'current' in str(c).lower() and ('traffic' in str(c).lower() or 'ruch' in str(c).lower())), None)
+                                c_pp = next((c for c in df_ah.columns if 'previous' in str(c).lower() and ('position' in str(c).lower() or 'pozycj' in str(c).lower())), None)
+                                c_pc = next((c for c in df_ah.columns if 'current' in str(c).lower() and ('position' in str(c).lower() or 'pozycj' in str(c).lower())), None)
                             
                                 if c_tp and c_tc:
-                                    df['Ah_Traff_Prev'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_tp], errors='coerce').fillna(0)))).fillna(0)
-                                    df['Ah_Traff_Curr'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_tc], errors='coerce').fillna(0)))).fillna(0)
+                                    df['Ah_Traff_Prev'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_tp].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)))).fillna(0)
+                                    df['Ah_Traff_Curr'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_tc].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)))).fillna(0)
                                     df['Ah_Diff_Traff'] = df['Ah_Traff_Curr'] - df['Ah_Traff_Prev']
                                 if c_pp and c_pc:
-                                    df['Ah_Pos_Prev'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_pp], errors='coerce').fillna(0)))).fillna(0)
-                                    df['Ah_Pos_Curr'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_pc], errors='coerce').fillna(0)))).fillna(0)
+                                    df['Ah_Pos_Prev'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_pp].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)))).fillna(0)
+                                    df['Ah_Pos_Curr'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_pc].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)))).fillna(0)
                                     df['Ah_Diff_Pos'] = df['Ah_Pos_Curr'] - df['Ah_Pos_Prev']
+                            else:
+                                st.sidebar.warning(f"⚠️ Nie rozpoznano kolumn w pliku Ahrefs! Dostępne kolumny to: {', '.join(str(c) for c in df_ah.columns[:15])}...")
 
                         # Save extracted state
                         st.session_state['df_raw'] = df
@@ -768,8 +770,8 @@ if st.session_state.get('run_analysis', False):
                         df_loss_brand = df_loss[df_loss['Type'] == 'Brand']
                         df_loss_gen = df_loss[df_loss['Type'] == 'Generic']
                         
-                        serp_loss_brand = df_loss_brand[df_loss_brand['Pos_Round'] <= 25].groupby('Pos_Round')['Diff_Clicks'].sum().abs().reset_index()
-                        serp_loss_gen = df_loss_gen[df_loss_gen['Pos_Round'] <= 25].groupby('Pos_Round')['Diff_Clicks'].sum().abs().reset_index()
+                        serp_loss_brand = df_loss_brand[(df_loss_brand['Pos_Round'] <= 25) & (df_loss_brand['Pos_Round'] > 0)].groupby('Pos_Round')['Diff_Clicks'].sum().abs().reset_index()
+                        serp_loss_gen = df_loss_gen[(df_loss_gen['Pos_Round'] <= 25) & (df_loss_gen['Pos_Round'] > 0)].groupby('Pos_Round')['Diff_Clicks'].sum().abs().reset_index()
 
                         c_serp1, c_serp2 = st.columns(2)
                         
@@ -991,6 +993,26 @@ if st.session_state.get('run_analysis', False):
                             st.dataframe(ui_gkp, use_container_width=True)
                         else:
                             st.info("Brak wystarczająco dużych spadków kwalifikujących się do korelacji GKP.")
+                            
+                        st.markdown("---")
+                        st.subheader("GKP: Wzrost Wyszukiwań (Zainteresowania)")
+                        st.markdown("Zestawienie fraz, dla których odnotowano wzrost kliknięć oraz potencjalny wzrost popytu.")
+                        
+                        gkp_g = df_growth[(df_growth['GKP_Vol_Prev'] > 0) & (df_growth['Diff_Clicks'] > 5)].copy()
+                        if not gkp_g.empty:
+                            gkp_g['Vol_Diff'] = gkp_g['GKP_Vol_Curr'] - gkp_g['GKP_Vol_Prev']
+                            fig4 = px.scatter(gkp_g, x='Vol_Diff', y='Diff_Clicks', color='Type', hover_data=['Query', 'Diagnosis', 'GKP_Vol_Prev', 'GKP_Vol_Curr'], title="GKP: Wzrost Popytu Rynkowego vs Nasze Zyskane Kliknięcia", labels={'Vol_Diff': 'Wzrost Popytu (GKP)', 'Diff_Clicks': 'Zysk kliknięć (GSC)'})
+                            st.plotly_chart(fig4, use_container_width=True)
+                            
+                            st.markdown("**(GKP) Zestawienie TOP fraz po wzroście popytu użytkowników:**")
+                            ui_gkp_g = gkp_g[['Query', 'Type', 'Diagnosis', 'GKP_Vol_Prev', 'GKP_Vol_Curr', 'Vol_Diff', 'GKP_Trend', 'Clicks_Prev', 'Clicks_Curr', 'Diff_Clicks']].copy()
+                            ui_gkp_g['GKP_Trend'] = (ui_gkp_g['GKP_Trend'] * 100).map("{:.4f}%".format)
+                            ui_gkp_g = ui_gkp_g.sort_values('Vol_Diff', ascending=False)
+                            ui_gkp_g.columns = ['Fraza', 'Typ', 'Diagnoza', 'Popyt Poprz.', 'Popyt Akt.', 'Wzrost Popytu Num (GKP)', 'Wzrost Popytu % (GKP)', 'Kliki Poprz. (GSC)', 'Kliki Akt. (GSC)', 'Zysk Kliknięć (GSC)']
+                            st.dataframe(ui_gkp_g, use_container_width=True)
+                        else:
+                            st.info("Brak wystarczająco dużych wzrostów kwalifikujących się do korelacji GKP.")
+
                     else:
                         st.warning("Brak użytecznych danych wolumenowych z Keyword Plannera. Upewnij się, że wgrano plik i wpisano poprawne nazwy w kolumnach konfiguracji.")
                     
