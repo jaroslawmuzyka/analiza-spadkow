@@ -468,6 +468,8 @@ def assign_multiple_diagnoses(df, mask_missing):
 # ----------------- UI GŁÓWNE APLIKACJI -----------------
 st.title("📈 Zaawansowany Audyt SEO i Analiza Spadków")
 
+st.info("💡 **Ważne:** Dane widoczne w tym panelu (np. Suma Utraconych Kliknięć) mogą różnić się od globalnego bilansu widocznego na żywo w panelu GSC. Wynika to z faktu, że plik pobrany z GSC jest odgórnie ucinany do ok. 1000-1500 wierszy, przez co aplikacja zlicza wyłącznie frazy obecne w tym uciętym pliku (pomijając głęboki długi ogon obecny w panelu).")
+
 with st.expander("🛠️ Instrukcja pobierania danych i Słownik Pojęć", expanded=False):
     st.markdown("""
     ### 🛠️ Instrukcja pobierania danych
@@ -784,6 +786,11 @@ if st.session_state.get('run_analysis', False):
                     col2.metric("Suma Utraconych Kliknięć (GSC)", f"{int(loss_sum_ui)}")
                     col3.metric("Ilość Fraz Ze Spadkiem (GSC)", f"{len(df_loss)}")
                     col4.metric("Ilość Fraz Wygasłych (Brak Danych GSC)", f"{mask_missing.sum()}")
+                    
+                    st.info("💡 **Uwaga:** GSC ma sztywny limit eksportu 1000 wierszy (lub więcej przy API). Powyższe KPI podsumowują **wyłącznie** dane wgrane w pliku i będą różnić się od globalnego bilansu widocznego w panelu GSC (gdzie podliczane są setki tysięcy adresów URL).")
+                    
+                    if (df_pages is not None and len(df_pages) == 1000) or len(df) == 1000:
+                        st.warning("⚠️ **LIMIT GSC OSIĄGNIĘTY!** Twój wgrany plik Excel ucina się idealnie na 1000 wierszach. Znaczy to, że wgrane dane NIE obejmują wielu małych fraz (tzw. długiego ogona). Prawdziwa suma straconych kliknięć dla całego sklepu jest dużo większa. Aby wgrać wszystko, pobierz dane przez API lub dodatek 'Search Analytics for Sheets'.")
                     
                     st.divider()
                     
