@@ -737,7 +737,8 @@ if st.session_state.get('run_analysis', False):
                 df_growth = df[df['Diff_Clicks'] > 0].copy()
                 df_chart = df_loss.copy()
 
-                fig1 = fig2 = fig_brand = fig_ah = fig3 = fig_ctr = fig_serp = ui_gkp = None
+                fig1 = fig2 = fig_brand = fig_ah = fig3 = fig4 = fig_ctr = fig_serp = ui_gkp = ui_gkp_g = None
+                no_change_loss = no_change_growth = None
                 ui_df_queries = generate_ui_dataframe(df, type_name="Query")
                 ui_df_pages = generate_ui_dataframe(df_pages, type_name="Page") if df_pages is not None else None
 
@@ -1062,13 +1063,16 @@ if st.session_state.get('run_analysis', False):
                         no_change_loss = df_no_change[df_no_change['Diff_Clicks'] < 0].sort_values('Diff_Clicks', ascending=True)
                         no_change_growth = df_no_change[df_no_change['Diff_Clicks'] > 0].sort_values('Diff_Clicks', ascending=False)
                         
-                        st.subheader("🔴 Spadki ruchu przy stabilnej pozycji")
+                        loss_sum_no_change = no_change_loss['Diff_Clicks'].sum()
+                        growth_sum_no_change = no_change_growth['Diff_Clicks'].sum()
+                        
+                        st.subheader(f"🔴 Spadki ruchu przy stabilnej pozycji (Bilans: {int(loss_sum_no_change)} kliknięć)")
                         st.dataframe(generate_ui_dataframe(no_change_loss, "Query"), use_container_width=True, column_config={
                             "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
                             "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
                         })
                         
-                        st.subheader("🟢 Wzrosty ruchu przy stabilnej pozycji")
+                        st.subheader(f"🟢 Wzrosty ruchu przy stabilnej pozycji (Bilans: +{int(growth_sum_no_change)} kliknięć)")
                         st.dataframe(generate_ui_dataframe(no_change_growth, "Query"), use_container_width=True, column_config={
                             "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
                             "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
@@ -1088,6 +1092,12 @@ if st.session_state.get('run_analysis', False):
                                 ui_df_pages.to_excel(writer, sheet_name='Adresy (Pages)', index=False)
                             if ui_gkp is not None and not ui_gkp.empty:
                                 ui_gkp.to_excel(writer, sheet_name='GKP Utrata Popytu', index=False)
+                            if ui_gkp_g is not None and not ui_gkp_g.empty:
+                                ui_gkp_g.to_excel(writer, sheet_name='GKP Wzrost Popytu', index=False)
+                            if no_change_loss is not None and not no_change_loss.empty:
+                                generate_ui_dataframe(no_change_loss, "Query").to_excel(writer, sheet_name='Brak Zmiany (Spadki)', index=False)
+                            if no_change_growth is not None and not no_change_growth.empty:
+                                generate_ui_dataframe(no_change_growth, "Query").to_excel(writer, sheet_name='Brak Zmiany (Wzrosty)', index=False)
                             if fig_ctr is not None:
                                 try:
                                     ctr_df_ex = ctr_curve.pivot(index='Pozycja', columns='Okres', values='CTR_Sredni').reset_index()
