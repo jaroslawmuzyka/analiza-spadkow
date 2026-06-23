@@ -1097,26 +1097,52 @@ if st.session_state.get('run_analysis', False):
                     
                     max_pos_change = st.slider("Maksymalna dopuszczalna zmiana pozycji (próg błędu):", min_value=0.0, max_value=2.0, value=0.3, step=0.1)
                     
-                    df_no_change = df[df['Diff_Pos'].abs() <= max_pos_change].copy()
+                    df_no_change_all = df[df['Diff_Pos'].abs() <= max_pos_change].copy()
+                    
+                    # Global exports setup
+                    nc_loss_all = df_no_change_all[df_no_change_all['Diff_Clicks'] < 0].sort_values('Diff_Clicks', ascending=True)
+                    nc_growth_all = df_no_change_all[df_no_change_all['Diff_Clicks'] > 0].sort_values('Diff_Clicks', ascending=False)
+                    
+                    df_nc_brand = df_no_change_all[df_no_change_all['Type'] == 'Brand']
+                    nc_loss_brand = df_nc_brand[df_nc_brand['Diff_Clicks'] < 0].sort_values('Diff_Clicks', ascending=True)
+                    nc_growth_brand = df_nc_brand[df_nc_brand['Diff_Clicks'] > 0].sort_values('Diff_Clicks', ascending=False)
+                    
+                    df_nc_nonbrand = df_no_change_all[df_no_change_all['Type'] == 'Generic']
+                    nc_loss_nonbrand = df_nc_nonbrand[df_nc_nonbrand['Diff_Clicks'] < 0].sort_values('Diff_Clicks', ascending=True)
+                    nc_growth_nonbrand = df_nc_nonbrand[df_nc_nonbrand['Diff_Clicks'] > 0].sort_values('Diff_Clicks', ascending=False)
+
+                    nc_type = st.radio("Filtruj wg typu zapytań:", ["Wszystkie", "Brand", "Non-Brand (Generic)"], horizontal=True, key="nc_type_radio")
+                    if nc_type == "Brand":
+                        df_no_change = df_nc_brand.copy()
+                        no_change_loss, no_change_growth = nc_loss_brand, nc_growth_brand
+                    elif nc_type == "Non-Brand (Generic)":
+                        df_no_change = df_nc_nonbrand.copy()
+                        no_change_loss, no_change_growth = nc_loss_nonbrand, nc_growth_nonbrand
+                    else:
+                        df_no_change = df_no_change_all.copy()
+                        no_change_loss, no_change_growth = nc_loss_all, nc_growth_all
                     
                     if not df_no_change.empty:
-                        no_change_loss = df_no_change[df_no_change['Diff_Clicks'] < 0].sort_values('Diff_Clicks', ascending=True)
-                        no_change_growth = df_no_change[df_no_change['Diff_Clicks'] > 0].sort_values('Diff_Clicks', ascending=False)
-                        
                         loss_sum_no_change = no_change_loss['Diff_Clicks'].sum()
                         growth_sum_no_change = no_change_growth['Diff_Clicks'].sum()
                         
                         st.subheader(f"🔴 Spadki ruchu przy stabilnej pozycji (Bilans: {int(loss_sum_no_change)} kliknięć)")
-                        st.dataframe(generate_ui_dataframe(no_change_loss, "Query"), use_container_width=True, column_config={
-                            "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
-                            "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
-                        })
+                        if not no_change_loss.empty:
+                            st.dataframe(generate_ui_dataframe(no_change_loss, "Query"), use_container_width=True, column_config={
+                                "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
+                                "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
+                            })
+                        else:
+                            st.info("Brak spadków dla tego filtru.")
                         
                         st.subheader(f"🟢 Wzrosty ruchu przy stabilnej pozycji (Bilans: +{int(growth_sum_no_change)} kliknięć)")
-                        st.dataframe(generate_ui_dataframe(no_change_growth, "Query", sort_asc=False), use_container_width=True, column_config={
-                            "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
-                            "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
-                        })
+                        if not no_change_growth.empty:
+                            st.dataframe(generate_ui_dataframe(no_change_growth, "Query", sort_asc=False), use_container_width=True, column_config={
+                                "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
+                                "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
+                            })
+                        else:
+                            st.info("Brak wzrostów dla tego filtru.")
                     else:
                         st.info("Brak fraz spełniających te kryteria.")
 
@@ -1262,10 +1288,18 @@ if st.session_state.get('run_analysis', False):
                                 ui_gkp.to_excel(writer, sheet_name='GKP Utrata Popytu', index=False)
                             if ui_gkp_g is not None and not ui_gkp_g.empty:
                                 ui_gkp_g.to_excel(writer, sheet_name='GKP Wzrost Popytu', index=False)
-                            if no_change_loss is not None and not no_change_loss.empty:
-                                generate_ui_dataframe(no_change_loss, "Query").to_excel(writer, sheet_name='Brak Zmiany (Spadki)', index=False)
-                            if no_change_growth is not None and not no_change_growth.empty:
-                                generate_ui_dataframe(no_change_growth, "Query", sort_asc=False).to_excel(writer, sheet_name='Brak Zmiany (Wzrosty)', index=False)
+                            if nc_loss_all is not None and not nc_loss_all.empty:
+                                generate_ui_dataframe(nc_loss_all, "Query").to_excel(writer, sheet_name='Brak Zmiany All (Spadki)', index=False)
+                            if nc_growth_all is not None and not nc_growth_all.empty:
+                                generate_ui_dataframe(nc_growth_all, "Query", sort_asc=False).to_excel(writer, sheet_name='Brak Zmiany All (Wzrosty)', index=False)
+                            if nc_loss_brand is not None and not nc_loss_brand.empty:
+                                generate_ui_dataframe(nc_loss_brand, "Query").to_excel(writer, sheet_name='Brak Zmiany Brand (Spadki)', index=False)
+                            if nc_growth_brand is not None and not nc_growth_brand.empty:
+                                generate_ui_dataframe(nc_growth_brand, "Query", sort_asc=False).to_excel(writer, sheet_name='Brak Zmiany Brand (Wzrosty)', index=False)
+                            if nc_loss_nonbrand is not None and not nc_loss_nonbrand.empty:
+                                generate_ui_dataframe(nc_loss_nonbrand, "Query").to_excel(writer, sheet_name='Brak Zm. Nonbrand (Spadki)', index=False)
+                            if nc_growth_nonbrand is not None and not nc_growth_nonbrand.empty:
+                                generate_ui_dataframe(nc_growth_nonbrand, "Query", sort_asc=False).to_excel(writer, sheet_name='Brak Zm. Nonbrand (Wzrosty)', index=False)
                             if wg_stats_all is not None and not wg_stats_all.empty:
                                 wg_stats_all.to_excel(writer, sheet_name='Długi ogon (Statystyki)', index=False)
                             generate_ui_dataframe(df, "Query").to_excel(writer, sheet_name='Długi ogon (all keywords)', index=False)
