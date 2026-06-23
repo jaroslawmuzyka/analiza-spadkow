@@ -722,7 +722,7 @@ if st.session_state.get('run_analysis', False):
                         summ_text = " | ".join([f"Kody {k}xx: {v}" for k, v in codes_count.items() if k.isdigit()])
                         st.info(f"📊 Zintegrowano URL: {len(df_status)} ({summ_text})")
 
-                tab1, tab2, tab3, tab4, tab5, tab6, tab8, tab7 = st.tabs([
+                tab1, tab2, tab3, tab4, tab5, tab6, tab8, tab9, tab10, tab7 = st.tabs([
                     "📊 KPI & Wykresy", 
                     "🔍 Analiza Fraz", 
                     "📄 Analiza Adresów", 
@@ -730,15 +730,30 @@ if st.session_state.get('run_analysis', False):
                     "🎯 Ahrefs",
                     "📈 GKP & GSC Trendy",
                     "⚖️ Brak Zmiany Pozycji",
+                    "🧩 Długi Ogon",
+                    "🏷️ Zapytania Brandowe",
                     "💾 Pobierz Pliki"
                 ])
+                
+                def map_word_group(x):
+                    if pd.isna(x) or x <= 0: return 'Inne'
+                    elif x == 1: return '1 wyraz'
+                    elif x == 2: return '2 wyrazy'
+                    elif x == 3: return '3 wyrazy'
+                    elif x == 4: return '4 wyrazy'
+                    else: return '5+ wyrazów'
+
+                df['Word_Count'] = df['Query'].astype(str).str.split().str.len()
+                df['Word_Group'] = df['Word_Count'].apply(map_word_group)
+                word_order = ['1 wyraz', '2 wyrazy', '3 wyrazy', '4 wyrazy', '5+ wyrazów', 'Inne']
+                df['Word_Group'] = pd.Categorical(df['Word_Group'], categories=word_order, ordered=True)
                 
                 df_loss = df[df['Diff_Clicks'] < 0].copy()
                 df_growth = df[df['Diff_Clicks'] > 0].copy()
                 df_chart = df_loss.copy()
 
                 fig1 = fig2 = fig_brand = fig_ah = fig3 = fig4 = fig_ctr = fig_serp = ui_gkp = ui_gkp_g = None
-                no_change_loss = no_change_growth = None
+                no_change_loss = no_change_growth = wg_stats = None
                 ui_df_queries = generate_ui_dataframe(df, type_name="Query")
                 ui_df_pages = generate_ui_dataframe(df_pages, type_name="Page") if df_pages is not None else None
 
@@ -1080,6 +1095,83 @@ if st.session_state.get('run_analysis', False):
                     else:
                         st.info("Brak fraz spełniających te kryteria.")
 
+                with tab9:
+                    st.header("🧩 Analiza Długiego Ogona (Word Count)")
+                    st.markdown("Sprawdź, jak długość frazy (liczba wyrazów) przekłada się na spadki i wzrosty. Często aktualizacje Google uderzają w długi ogon, zostawiając krótkie frazy nietknięte.")
+                    
+                    wg_stats = df.groupby('Word_Group', observed=False).agg(
+                        Fraz=('Query', 'count'),
+                        Kliknięcia_Poprz=('Clicks_Prev', 'sum'),
+                        Kliknięcia_Akt=('Clicks_Curr', 'sum'),
+                        Różnica_Kliknięć=('Diff_Clicks', 'sum'),
+                        Popyt_Poprz=('GKP_Vol_Prev', 'sum'),
+                        Popyt_Akt=('GKP_Vol_Curr', 'sum')
+                    ).reset_index()
+                    
+                    if 'Ah_Traff_Curr' in df.columns:
+                        wg_ah = df.groupby('Word_Group', observed=False).agg(
+                            Ruch_Ahrefs_Poprz=('Ah_Traff_Prev', 'sum'),
+                            Ruch_Ahrefs_Akt=('Ah_Traff_Curr', 'sum')
+                        ).reset_index()
+                        wg_stats = pd.merge(wg_stats, wg_ah, on='Word_Group', how='left')
+                        
+                    wg_stats = wg_stats[wg_stats['Fraz'] > 0]
+                    
+                    st.subheader("📊 Zestawienie statystyk")
+                    st.dataframe(wg_stats, use_container_width=True)
+                    
+                    colA, colB = st.columns(2)
+                    with colA:
+                        fig_wc_clicks = px.bar(wg_stats, x='Word_Group', y='Różnica_Kliknięć', title="GSC: Różnica Kliknięć wg Długości Frazy", color='Różnica_Kliknięć', color_continuous_scale=px.colors.diverging.RdYlGn)
+                        st.plotly_chart(fig_wc_clicks, use_container_width=True)
+                    with colB:
+                        if wg_stats['Popyt_Poprz'].sum() > 0:
+                            wg_stats['Różnica_Popytu'] = wg_stats['Popyt_Akt'] - wg_stats['Popyt_Poprz']
+                            fig_wc_gkp = px.bar(wg_stats, x='Word_Group', y='Różnica_Popytu', title="GKP: Zmiana Popytu Rynkowego wg Długości Frazy", color='Różnica_Popytu', color_continuous_scale=px.colors.diverging.RdYlGn)
+                            st.plotly_chart(fig_wc_gkp, use_container_width=True)
+                        else:
+                            st.info("Brak wystarczających danych GKP do wygenerowania wykresu popytu.")
+
+                with tab10:
+                    st.header("🏷️ Analiza Zapytań Brandowych")
+                    st.markdown("Szczegółowy wgląd w kondycję zapytań powiązanych z Twoją marką (Brand). Zobacz, czy użytkownicy rzadziej szukają Twojego sklepu po nazwie.")
+                    
+                    df_brand_tab = df[df['Type'] == 'Brand'].copy()
+                    
+                    if not df_brand_tab.empty:
+                        brand_diff = df_brand_tab['Diff_Clicks'].sum()
+                        brand_loss = df_brand_tab[df_brand_tab['Diff_Clicks'] < 0]['Diff_Clicks'].sum()
+                        brand_growth = df_brand_tab[df_brand_tab['Diff_Clicks'] > 0]['Diff_Clicks'].sum()
+                        
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("Bilans Kliknięć (Brand)", f"{int(brand_diff):+}", delta=int(brand_diff), delta_color="normal")
+                        col2.metric("Suma Strat (Brand)", int(brand_loss), delta=int(brand_loss), delta_color="inverse")
+                        col3.metric("Suma Wzrostów (Brand)", f"+{int(brand_growth)}", delta=int(brand_growth), delta_color="normal")
+                        
+                        st.divider()
+                        st.subheader("📊 Największe różnice w zapytaniach brandowych")
+                        
+                        df_brand_sorted = df_brand_tab.assign(Abs_Diff=df_brand_tab['Diff_Clicks'].abs()).sort_values('Abs_Diff', ascending=False).drop(columns=['Abs_Diff']).head(100)
+                        
+                        ui_brand = generate_ui_dataframe(df_brand_sorted, "Query")
+                        st.dataframe(ui_brand, use_container_width=True, column_config={
+                            "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
+                            "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
+                        })
+                        
+                        fig_brand_bar = px.bar(
+                            df_brand_sorted.head(20), 
+                            x='Query', 
+                            y='Diff_Clicks', 
+                            color='Diff_Clicks', 
+                            title="Top 20 Fraz Brandowych z największą zmianą",
+                            color_continuous_scale=px.colors.diverging.RdYlGn
+                        )
+                        st.plotly_chart(fig_brand_bar, use_container_width=True)
+                        
+                    else:
+                        st.info("Brak zapytań sklasyfikowanych jako Brand. Upewnij się, że wpisano poprawne słowa kluczowe w panelu po lewej stronie.")
+
                 with tab7:
                     st.header("Pobierz Raporty")
                     
@@ -1098,6 +1190,10 @@ if st.session_state.get('run_analysis', False):
                                 generate_ui_dataframe(no_change_loss, "Query").to_excel(writer, sheet_name='Brak Zmiany (Spadki)', index=False)
                             if no_change_growth is not None and not no_change_growth.empty:
                                 generate_ui_dataframe(no_change_growth, "Query").to_excel(writer, sheet_name='Brak Zmiany (Wzrosty)', index=False)
+                            if wg_stats is not None and not wg_stats.empty:
+                                wg_stats.to_excel(writer, sheet_name='Analiza Długiego Ogona', index=False)
+                            if ui_brand is not None and not ui_brand.empty:
+                                ui_brand.to_excel(writer, sheet_name='Zapytania Brandowe', index=False)
                             if fig_ctr is not None:
                                 try:
                                     ctr_df_ex = ctr_curve.pivot(index='Pozycja', columns='Okres', values='CTR_Sredni').reset_index()
