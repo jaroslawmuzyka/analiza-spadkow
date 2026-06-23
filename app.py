@@ -569,8 +569,8 @@ if st.session_state.get('run_analysis', False):
                             if col_kw:
                                 df_ah['join_key'] = df_ah[col_kw].astype(str).str.strip().str.lower()
                             
-                                c_up = next((c for c in df_ah.columns if 'previous' in str(c).lower() and 'url' in str(c).lower()), None)
-                                c_uc = next((c for c in df_ah.columns if 'current' in str(c).lower() and 'url' in str(c).lower()), None)
+                                c_up = next((c for c in df_ah.columns if 'previous' in str(c).lower() and 'url' in str(c).lower() and 'inside' not in str(c).lower()), None)
+                                c_uc = next((c for c in df_ah.columns if 'current' in str(c).lower() and 'url' in str(c).lower() and 'inside' not in str(c).lower()), None)
                                 if c_up and c_uc:
                                     df['Ah_URL_Changed'] = df['join_key'].map(dict(zip(df_ah['join_key'], (df_ah[c_up] != df_ah[c_uc]) & df_ah[c_uc].notna()))).fillna(False)
                                     df['Ah_URL_Prev'] = df['join_key'].map(dict(zip(df_ah['join_key'], df_ah[c_up])))
@@ -589,6 +589,14 @@ if st.session_state.get('run_analysis', False):
                                     df['Ah_Pos_Prev'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_pp].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)))).fillna(0)
                                     df['Ah_Pos_Curr'] = df['join_key'].map(dict(zip(df_ah['join_key'], pd.to_numeric(df_ah[c_pc].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)))).fillna(0)
                                     df['Ah_Diff_Pos'] = df['Ah_Pos_Curr'] - df['Ah_Pos_Prev']
+                                    
+                                if df_pages is not None:
+                                    if c_tc and c_uc:
+                                        ah_traff_c = df_ah.groupby(c_uc)[c_tc].apply(lambda x: pd.to_numeric(x.astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').sum())
+                                        df_pages['Ah_Traff_Curr'] = df_pages['URL'].map(ah_traff_c).fillna(0)
+                                    if c_tp and c_up:
+                                        ah_traff_p = df_ah.groupby(c_up)[c_tp].apply(lambda x: pd.to_numeric(x.astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').sum())
+                                        df_pages['Ah_Traff_Prev'] = df_pages['URL'].map(ah_traff_p).fillna(0)
                             else:
                                 st.sidebar.warning(f"⚠️ Nie rozpoznano kolumn w pliku Ahrefs! Dostępne kolumny to: {', '.join(str(c) for c in df_ah.columns[:15])}...")
 
@@ -714,13 +722,14 @@ if st.session_state.get('run_analysis', False):
                         summ_text = " | ".join([f"Kody {k}xx: {v}" for k, v in codes_count.items() if k.isdigit()])
                         st.info(f"📊 Zintegrowano URL: {len(df_status)} ({summ_text})")
 
-                tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+                tab1, tab2, tab3, tab4, tab5, tab6, tab8, tab7 = st.tabs([
                     "📊 KPI & Wykresy", 
                     "🔍 Analiza Fraz", 
                     "📄 Analiza Adresów", 
                     "🕵️‍♂️ Eksplorator Diagnoz", 
                     "🎯 Ahrefs",
                     "📈 GKP & GSC Trendy",
+                    "⚖️ Brak Zmiany Pozycji",
                     "💾 Pobierz Pliki"
                 ])
                 
@@ -1041,6 +1050,32 @@ if st.session_state.get('run_analysis', False):
                         fig_ctr.update_yaxes(tickformat=".2%")
                         st.plotly_chart(fig_ctr, use_container_width=True)
                         
+                with tab8:
+                    st.header("⚖️ Analiza: Brak zmiany pozycji GSC")
+                    st.markdown("Sprawdź, które frazy nie zanotowały zmiany pozycji, a mimo to straciły lub zyskały ruch.")
+                    
+                    max_pos_change = st.slider("Maksymalna dopuszczalna zmiana pozycji (próg błędu):", min_value=0.0, max_value=2.0, value=0.3, step=0.1)
+                    
+                    df_no_change = df[df['Diff_Pos'].abs() <= max_pos_change].copy()
+                    
+                    if not df_no_change.empty:
+                        no_change_loss = df_no_change[df_no_change['Diff_Clicks'] < 0].sort_values('Diff_Clicks', ascending=True)
+                        no_change_growth = df_no_change[df_no_change['Diff_Clicks'] > 0].sort_values('Diff_Clicks', ascending=False)
+                        
+                        st.subheader("🔴 Spadki ruchu przy stabilnej pozycji")
+                        st.dataframe(generate_ui_dataframe(no_change_loss, "Query"), use_container_width=True, column_config={
+                            "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
+                            "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
+                        })
+                        
+                        st.subheader("🟢 Wzrosty ruchu przy stabilnej pozycji")
+                        st.dataframe(generate_ui_dataframe(no_change_growth, "Query"), use_container_width=True, column_config={
+                            "Poprzedni URL (Ahrefs)": st.column_config.LinkColumn(),
+                            "Aktualny URL (Ahrefs)": st.column_config.LinkColumn()
+                        })
+                    else:
+                        st.info("Brak fraz spełniających te kryteria.")
+
                 with tab7:
                     st.header("Pobierz Raporty")
                     
