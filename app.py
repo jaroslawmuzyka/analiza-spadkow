@@ -1099,7 +1099,15 @@ if st.session_state.get('run_analysis', False):
                     st.header("🧩 Analiza Długiego Ogona (Word Count)")
                     st.markdown("Sprawdź, jak długość frazy (liczba wyrazów) przekłada się na spadki i wzrosty. Często aktualizacje Google uderzają w długi ogon, zostawiając krótkie frazy nietknięte.")
                     
-                    wg_stats = df.groupby('Word_Group', observed=False).agg(
+                    tail_type = st.radio("Filtruj wg typu zapytań:", ["Wszystkie", "Brand", "Non-Brand (Generic)"], horizontal=True)
+                    if tail_type == "Brand":
+                        df_tail = df[df['Type'] == 'Brand'].copy()
+                    elif tail_type == "Non-Brand (Generic)":
+                        df_tail = df[df['Type'] == 'Generic'].copy()
+                    else:
+                        df_tail = df.copy()
+                        
+                    wg_stats = df_tail.groupby('Word_Group', observed=False).agg(
                         Fraz=('Query', 'count'),
                         Kliknięcia_Poprz=('Clicks_Prev', 'sum'),
                         Kliknięcia_Akt=('Clicks_Curr', 'sum'),
@@ -1108,8 +1116,8 @@ if st.session_state.get('run_analysis', False):
                         Popyt_Akt=('GKP_Vol_Curr', 'sum')
                     ).reset_index()
                     
-                    if 'Ah_Traff_Curr' in df.columns:
-                        wg_ah = df.groupby('Word_Group', observed=False).agg(
+                    if 'Ah_Traff_Curr' in df_tail.columns:
+                        wg_ah = df_tail.groupby('Word_Group', observed=False).agg(
                             Ruch_Ahrefs_Poprz=('Ah_Traff_Prev', 'sum'),
                             Ruch_Ahrefs_Akt=('Ah_Traff_Curr', 'sum')
                         ).reset_index()
@@ -1141,7 +1149,7 @@ if st.session_state.get('run_analysis', False):
                     st.subheader("📋 Szczegółowe tabele dla każdej długości frazy")
                     
                     for wg in ['1 wyraz', '2 wyrazy', '3 wyrazy', '4 wyrazy', '5+ wyrazów']:
-                        df_wg = df[df['Word_Group'] == wg].copy()
+                        df_wg = df_tail[df_tail['Word_Group'] == wg].copy()
                         if not df_wg.empty:
                             with st.expander(f"Zestawienie fraz: {wg} ({len(df_wg)} zapytań)"):
                                 df_wg_ui = generate_ui_dataframe(df_wg, "Query")
