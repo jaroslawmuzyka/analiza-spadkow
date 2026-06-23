@@ -125,6 +125,7 @@ def generate_ui_dataframe(df_orig, type_name="Query", sort_asc=True):
         'Query': 'Fraza', 'URL': 'Adres URL (GSC)',
         'Diagnosis': 'Diagnoza',
         'Type': 'Typ (Brand/Generic)',
+        'Word_Group': 'Długość frazy (Słowa)',
         'Pos_Prev': 'Poprzednia pozycja (GSC)', 'Pos_Curr': 'Aktualna pozycja (GSC)', 'Diff_Pos': 'Różnica pozycji (GSC)',
         'Clicks_Prev': 'Poprzednie kliknięcia (GSC)', 'Clicks_Curr': 'Aktualne kliknięcia (GSC)', 'Diff_Clicks': 'Różnica kliknięć (GSC)',
         'Impr_Prev': 'Poprzednie wyświetlenia (GSC)', 'Impr_Curr': 'Aktualne wyświetlenia (GSC)', 'Diff_Impr': 'Różnica wyśw. (GSC)',
@@ -140,6 +141,7 @@ def generate_ui_dataframe(df_orig, type_name="Query", sort_asc=True):
     ordered_cols = []
     if type_name == "Query":
         ordered_cols.extend(["Fraza", "Typ (Brand/Generic)"])
+        if 'Długość frazy (Słowa)' in df.columns: ordered_cols.append("Długość frazy (Słowa)")
         if 'Status Code' in df.columns: ordered_cols.append("Status Code")
     else:
         ordered_cols.append("Adres URL (GSC)")
@@ -1099,6 +1101,24 @@ if st.session_state.get('run_analysis', False):
                     st.header("🧩 Analiza Długiego Ogona (Word Count)")
                     st.markdown("Sprawdź, jak długość frazy (liczba wyrazów) przekłada się na spadki i wzrosty. Często aktualizacje Google uderzają w długi ogon, zostawiając krótkie frazy nietknięte.")
                     
+                    wg_stats_all = df.groupby('Word_Group', observed=False).agg(
+                        Fraz=('Query', 'count'),
+                        Kliknięcia_Poprz=('Clicks_Prev', 'sum'),
+                        Kliknięcia_Akt=('Clicks_Curr', 'sum'),
+                        Różnica_Kliknięć=('Diff_Clicks', 'sum'),
+                        Popyt_Poprz=('GKP_Vol_Prev', 'sum'),
+                        Popyt_Akt=('GKP_Vol_Curr', 'sum')
+                    ).reset_index()
+                    
+                    if 'Ah_Traff_Curr' in df.columns:
+                        wg_ah_all = df.groupby('Word_Group', observed=False).agg(
+                            Ruch_Ahrefs_Poprz=('Ah_Traff_Prev', 'sum'),
+                            Ruch_Ahrefs_Akt=('Ah_Traff_Curr', 'sum')
+                        ).reset_index()
+                        wg_stats_all = pd.merge(wg_stats_all, wg_ah_all, on='Word_Group', how='left')
+                        
+                    wg_stats_all = wg_stats_all[wg_stats_all['Fraz'] > 0]
+                    
                     tail_type = st.radio("Filtruj wg typu zapytań:", ["Wszystkie", "Brand", "Non-Brand (Generic)"], horizontal=True)
                     if tail_type == "Brand":
                         df_tail = df[df['Type'] == 'Brand'].copy()
@@ -1223,12 +1243,15 @@ if st.session_state.get('run_analysis', False):
                                 generate_ui_dataframe(no_change_loss, "Query").to_excel(writer, sheet_name='Brak Zmiany (Spadki)', index=False)
                             if no_change_growth is not None and not no_change_growth.empty:
                                 generate_ui_dataframe(no_change_growth, "Query", sort_asc=False).to_excel(writer, sheet_name='Brak Zmiany (Wzrosty)', index=False)
-                            if wg_stats is not None and not wg_stats.empty:
-                                wg_stats.to_excel(writer, sheet_name='Analiza Długiego Ogona', index=False)
+                            if wg_stats_all is not None and not wg_stats_all.empty:
+                                wg_stats_all.to_excel(writer, sheet_name='Długi ogon (Statystyki)', index=False)
+                            generate_ui_dataframe(df, "Query").to_excel(writer, sheet_name='Długi ogon (all keywords)', index=False)
+                            generate_ui_dataframe(df[df['Type'] == 'Brand'], "Query").to_excel(writer, sheet_name='Długi ogon (brand)', index=False)
+                            generate_ui_dataframe(df[df['Type'] == 'Generic'], "Query").to_excel(writer, sheet_name='Długi ogon (nonbrand)', index=False)
                             if ui_brand_loss is not None and not ui_brand_loss.empty:
-                                ui_brand_loss.to_excel(writer, sheet_name='Brand (Spadki)', index=False)
+                                ui_brand_loss.to_excel(writer, sheet_name='Frazy brandowe (Spadki)', index=False)
                             if ui_brand_growth is not None and not ui_brand_growth.empty:
-                                ui_brand_growth.to_excel(writer, sheet_name='Brand (Wzrosty)', index=False)
+                                ui_brand_growth.to_excel(writer, sheet_name='Frazy brandowe (Wzrosty)', index=False)
                             if fig_ctr is not None:
                                 try:
                                     ctr_df_ex = ctr_curve.pivot(index='Pozycja', columns='Okres', values='CTR_Sredni').reset_index()
