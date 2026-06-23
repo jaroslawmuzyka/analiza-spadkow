@@ -477,8 +477,21 @@ with st.sidebar:
 
     st.header("⚙️ 2. Konfiguracja")
     brand_cfg = st.text_input("Słowa Brandowe po przecinku (np. mediamarkt, media markt):", value="mediamarkt")
-    gkp_prev_cfg = st.text_input("GKP Kolumna Poprzednia (np. Jan 2025):")
-    gkp_curr_cfg = st.text_input("GKP Kolumna Aktualna (np. Jan 2026):")
+    gkp_columns = []
+    if file_gkp:
+        try:
+            df_gkp_temp = smart_load_gkp_bytes(file_gkp.getvalue(), file_gkp.name)
+            if df_gkp_temp is not None:
+                gkp_columns = [str(c) for c in df_gkp_temp.columns]
+        except Exception:
+            pass
+
+    if gkp_columns:
+        gkp_prev_cfg = st.selectbox("GKP Kolumna Poprzednia:", options=[""] + gkp_columns)
+        gkp_curr_cfg = st.selectbox("GKP Kolumna Aktualna:", options=[""] + gkp_columns)
+    else:
+        gkp_prev_cfg = st.text_input("GKP Kolumna Poprzednia (np. Jan 2025):")
+        gkp_curr_cfg = st.text_input("GKP Kolumna Aktualna (np. Jan 2026):")
     run_btn = st.button("🚀 URUCHOM ANALIZĘ", type="primary", use_container_width=True)
 
 if run_btn:
@@ -531,17 +544,19 @@ if st.session_state.get('run_analysis', False):
                         gkp_bytes = file_gkp.getvalue()
                         df_gkp = smart_load_gkp_bytes(gkp_bytes, file_gkp.name)
                         if df_gkp is not None:
-                            col_prev = next((c for c in df_gkp.columns if gkp_prev_cfg in c), None)
-                            col_curr = next((c for c in df_gkp.columns if gkp_curr_cfg in c), None)
+                            col_prev = next((c for c in df_gkp.columns if str(gkp_prev_cfg).lower() in str(c).lower()), None)
+                            col_curr = next((c for c in df_gkp.columns if str(gkp_curr_cfg).lower() in str(c).lower()), None)
                             if col_prev and col_curr:
                                 df_gkp[col_prev] = clean_money(df_gkp[col_prev])
                                 df_gkp[col_curr] = clean_money(df_gkp[col_curr])
-                                k_col = next((c for c in df_gkp.columns if 'Keyword' in c or 'Słowo' in c), df_gkp.columns[0])
+                                k_col = next((c for c in df_gkp.columns if 'Keyword' in str(c) or 'Słowo' in str(c)), df_gkp.columns[0])
                                 df_gkp['join_key'] = df_gkp[k_col].astype(str).str.strip().str.lower().replace(r'[^\w\s]', '', regex=True)
                             
                                 df['GKP_Vol_Prev'] = df['join_key'].map(dict(zip(df_gkp['join_key'], df_gkp[col_prev]))).fillna(0)
                                 df['GKP_Vol_Curr'] = df['join_key'].map(dict(zip(df_gkp['join_key'], df_gkp[col_curr]))).fillna(0)
                                 df['GKP_Trend'] = np.where(df['GKP_Vol_Prev'] > 0, (df['GKP_Vol_Curr'] - df['GKP_Vol_Prev']) / df['GKP_Vol_Prev'], 0)
+                            else:
+                                st.sidebar.warning(f"⚠️ Nie znaleziono kolumn dla GKP: '{gkp_prev_cfg}' lub '{gkp_curr_cfg}'.\\nDostępne kolumny: {', '.join(str(c) for c in df_gkp.columns[:10])}...")
 
                     # ----------------- 4. AHREFS MERGE -----------------
                     if file_ahrefs:
