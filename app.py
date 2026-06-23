@@ -961,8 +961,9 @@ if st.session_state.get('run_analysis', False):
                         # Zbierz wszystkie unikalne tagi do filtra 
                         all_diags = set()
                         for d in df['Diagnosis'].dropna():
-                            for k in d.split(', '):
-                                all_diags.add(k)
+                            for k in str(d).split(', '):
+                                if k.strip():
+                                    all_diags.add(k.strip())
                         
                         selected_diag = st.multiselect("Filtruj frazy zawierające diagnozę:", options=list(all_diags), default=[], key="diag_filter_q")
                         
@@ -984,8 +985,9 @@ if st.session_state.get('run_analysis', False):
                         if df_pages is not None:
                             all_diags_p = set()
                             for d in df_pages['Diagnosis'].dropna():
-                                for k in d.split(', '):
-                                    all_diags_p.add(k)
+                                for k in str(d).split(', '):
+                                    if k.strip():
+                                        all_diags_p.add(k.strip())
                                     
                             selected_diag_p = st.multiselect("Filtruj adresy URL zawierające diagnozę:", options=list(all_diags_p), default=[], key="diag_filter_p")
                             
